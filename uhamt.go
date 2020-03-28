@@ -8,10 +8,12 @@ import (
 // indexForBitPos returns the index within the collapsed array corresponding to
 // the given bit in the bitset.  The collapsed array contains only one entry
 // per bit set in the bitfield, and this function is used to map the indices.
+// 查询实际应该插入的位置
 func (n *Node) indexForBitPos(bp int) int {
 	return indexForBitPos(bp, n.Bitfield)
 }
 
+// 查询前面1的数量
 func indexForBitPos(bp int, bitfield *big.Int) int {
 	var x uint
 	var count, i int

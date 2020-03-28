@@ -16,6 +16,7 @@ const arrayWidth = 3
 const defaultBitWidth = 8
 
 type Node struct {
+	// bit stamp
 	Bitfield *big.Int   `refmt:"bf"`
 	Pointers []*Pointer `refmt:"p"`
 
@@ -30,6 +31,7 @@ type Option func(*Node)
 
 // UseTreeBitWidth allows you to set the width of the HAMT tree
 // in bits (from 1-8) via a customized hash function
+// 定制hamt树的bit宽度，只能在[1，8]范围
 func UseTreeBitWidth(bitWidth int) Option {
 	return func(nd *Node) {
 		if bitWidth > 0 && bitWidth <= 8 {
@@ -40,6 +42,7 @@ func UseTreeBitWidth(bitWidth int) Option {
 
 // NewNode creates a new IPLD HAMT Node with the given store and given
 // options
+// 创建node
 func NewNode(cs cbor.IpldStore, options ...Option) *Node {
 	nd := &Node{
 		Bitfield: big.NewInt(0),
@@ -54,11 +57,13 @@ func NewNode(cs cbor.IpldStore, options ...Option) *Node {
 	return nd
 }
 
+// key-value结构，value实现了un/MarshalCBOR功能
 type KV struct {
 	Key   string
 	Value *cbg.Deferred
 }
 
+// 指针，包含KV/link/缓存
 type Pointer struct {
 	KVs  []*KV   `refmt:"v,omitempty"`
 	Link cid.Cid `refmt:"l,omitempty"`
@@ -67,6 +72,7 @@ type Pointer struct {
 	cache *Node
 }
 
+// 查找k对应的value
 func (n *Node) Find(ctx context.Context, k string, out interface{}) error {
 	return n.getValue(ctx, &hashBits{b: hash(k)}, k, func(kv *KV) error {
 		// used to just see if the thing exists in the set
@@ -78,6 +84,7 @@ func (n *Node) Find(ctx context.Context, k string, out interface{}) error {
 			return um.UnmarshalCBOR(bytes.NewReader(kv.Value.Raw))
 		}
 
+		// 从kv中获取value
 		if err := cbor.DecodeInto(kv.Value.Raw, out); err != nil {
 			xerrors.Errorf("cbor decoding value: %w", err)
 		}
@@ -102,12 +109,14 @@ func (n *Node) Delete(ctx context.Context, k string) error {
 var ErrNotFound = fmt.Errorf("not found")
 var ErrMaxDepth = fmt.Errorf("attempted to traverse hamt beyond max depth")
 
+// 获取值
 func (n *Node) getValue(ctx context.Context, hv *hashBits, k string, cb func(*KV) error) error {
 	idx, err := hv.Next(n.bitWidth)
 	if err != nil {
 		return ErrMaxDepth
 	}
 
+	// bit位为零，则没有
 	if n.Bitfield.Bit(idx) == 0 {
 		return ErrNotFound
 	}
@@ -115,15 +124,19 @@ func (n *Node) getValue(ctx context.Context, hv *hashBits, k string, cb func(*KV
 	cindex := byte(n.indexForBitPos(idx))
 
 	c := n.getChild(cindex)
+	// 如果还有孩子
 	if c.isShard() {
+		// 加载孩子节点
 		chnd, err := c.loadChild(ctx, n.store, n.bitWidth)
 		if err != nil {
 			return err
 		}
 
+		// 在孩子节点查找
 		return chnd.getValue(ctx, hv, k, cb)
 	}
 
+	// 没有孩子，则在kv中查找
 	for _, kv := range c.KVs {
 		if kv.Key == k {
 			return cb(kv)
@@ -195,7 +208,7 @@ func (n *Node) checkSize(ctx context.Context) (uint64, error) {
 
 func (n *Node) Flush(ctx context.Context) error {
 	for _, p := range n.Pointers {
-		if p.cache != nil {
+		if p.cache != nil { // 清缓存
 			if err := p.cache.Flush(ctx); err != nil {
 				return err
 			}
@@ -205,7 +218,9 @@ func (n *Node) Flush(ctx context.Context) error {
 				return err
 			}
 
+			// 缓存置空
 			p.cache = nil
+			// 赋值link
 			p.Link = c
 		}
 	}
@@ -221,6 +236,7 @@ func (n *Node) SetRaw(ctx context.Context, k string, raw []byte) error {
 func (n *Node) Set(ctx context.Context, k string, v interface{}) error {
 	var d *cbg.Deferred
 
+	// 转为cbor原始字节
 	cm, ok := v.(cbg.CBORMarshaler)
 	if ok {
 		buf := new(bytes.Buffer)
@@ -274,15 +290,18 @@ func (n *Node) cleanChild(chnd *Node, cindex byte) error {
 }
 
 func (n *Node) modifyValue(ctx context.Context, hv *hashBits, k string, v *cbg.Deferred) error {
+	// 取指定字节宽度的索引整数
 	idx, err := hv.Next(n.bitWidth)
 	if err != nil {
 		return ErrMaxDepth
 	}
 
-	if n.Bitfield.Bit(idx) != 1 {
+	// 查询idx位置上比特位是否为1
+	if n.Bitfield.Bit(idx) != 1 { // 不为1，直接插入
 		return n.insertChild(idx, k, v)
 	}
 
+	// 查询修改的位置
 	cindex := byte(n.indexForBitPos(idx))
 
 	child := n.getChild(cindex)
@@ -365,33 +384,44 @@ func (n *Node) modifyValue(ctx context.Context, hv *hashBits, k string, v *cbg.D
 	return nil
 }
 
+// 插入孩子节点
 func (n *Node) insertChild(idx int, k string, v *cbg.Deferred) error {
 	if v == nil {
 		return ErrNotFound
 	}
 
+	// 查询插入的位置
 	i := n.indexForBitPos(idx)
+	// 设置相应bit为1
 	n.Bitfield.SetBit(n.Bitfield, idx, 1)
 
+	// 构造pointer
 	p := &Pointer{KVs: []*KV{{Key: k, Value: v}}}
 
+	// 插入到i和i+1中间
 	n.Pointers = append(n.Pointers[:i], append([]*Pointer{p}, n.Pointers[i:]...)...)
 	return nil
 }
 
+// 设置第i个位置的指针
 func (n *Node) setChild(i byte, p *Pointer) error {
 	n.Pointers[i] = p
 	return nil
 }
 
+// 移除孩子
 func (n *Node) rmChild(i byte, idx int) error {
+	// 前移覆盖
 	copy(n.Pointers[i:], n.Pointers[i+1:])
+	// 取n-1部分
 	n.Pointers = n.Pointers[:len(n.Pointers)-1]
+	// bit位置零
 	n.Bitfield.SetBit(n.Bitfield, idx, 0)
 
 	return nil
 }
 
+// 获取孩子
 func (n *Node) getChild(i byte) *Pointer {
 	if int(i) >= len(n.Pointers) || i < 0 {
 		return nil
@@ -400,6 +430,7 @@ func (n *Node) getChild(i byte) *Pointer {
 	return n.Pointers[i]
 }
 
+// 深拷贝一个节点
 func (n *Node) Copy() *Node {
 	nn := NewNode(n.store)
 	nn.bitWidth = n.bitWidth
@@ -424,6 +455,7 @@ func (n *Node) Copy() *Node {
 	return nn
 }
 
+// 是否计算了cid
 func (p *Pointer) isShard() bool {
 	return p.Link.Defined()
 }
