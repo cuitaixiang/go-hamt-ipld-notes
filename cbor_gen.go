@@ -22,6 +22,7 @@ func (t *Node) MarshalCBOR(w io.Writer) error {
 	}
 
 	// t.t.Bitfield (big.Int)
+	// 序列化bit域
 	{
 		var b []byte
 		if t.Bitfield != nil {
@@ -36,6 +37,7 @@ func (t *Node) MarshalCBOR(w io.Writer) error {
 		}
 	}
 
+	// TLV格式
 	// t.t.Pointers ([]*hamt.Pointer)
 	if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajArray, uint64(len(t.Pointers)))); err != nil {
 		return err
@@ -114,20 +116,25 @@ func (t *Node) UnmarshalCBOR(br io.Reader) error {
 	return nil
 }
 
+//KV的cbor序列化/反序列化方法
+
 func (t *KV) MarshalCBOR(w io.Writer) error {
 	if _, err := w.Write([]byte{130}); err != nil {
 		return err
 	}
 
 	// t.t.Key (string)
+	// 写入key的类型、长度，key必须为string
 	if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajTextString, uint64(len(t.Key)))); err != nil {
 		return err
 	}
+	// 写入key的内容
 	if _, err := w.Write([]byte(t.Key)); err != nil {
 		return err
 	}
 
 	// t.t.Value (cbg.Deferred)
+	// 写入value
 	if err := t.Value.MarshalCBOR(w); err != nil {
 		return err
 	}

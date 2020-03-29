@@ -26,6 +26,7 @@ func (t *Pointer) MarshalCBOR(w io.Writer) error {
 			return err
 		}
 
+		// link的key是0
 		if _, err := w.Write([]byte("0")); err != nil {
 			return err
 		}
@@ -35,6 +36,7 @@ func (t *Pointer) MarshalCBOR(w io.Writer) error {
 		}
 	} else {
 		// key for KVs is "1"
+		// KV的key是1
 		if err := cbg.CborWriteHeader(w, cbg.MajTextString, 1); err != nil {
 			return err
 		}
