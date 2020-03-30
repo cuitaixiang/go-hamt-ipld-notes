@@ -13,6 +13,7 @@ import (
 )
 
 // 每个pointer中KV的最大个数，相当于“串”的概念，相同前缀pointer中超过个数限制，则加一级子节点
+// 客观上允许hash碰撞3次
 const arrayWidth = 3
 const defaultBitWidth = 8
 
@@ -134,15 +135,15 @@ func (n *Node) getValue(ctx context.Context, hv *hashBits, k string, cb func(*KV
 
 	// 获取孩子pointer
 	c := n.getChild(cindex)
-	// 如果子节点还有孩子节点
+	// 如果子节点还有分片
 	if c.isShard() {
-		// 加载孩子节点
+		// 加载分片
 		chnd, err := c.loadChild(ctx, n.store, n.bitWidth)
 		if err != nil {
 			return err
 		}
 
-		// 在孩子节点查找
+		// 在分片中查找
 		return chnd.getValue(ctx, hv, k, cb)
 	}
 
