@@ -69,7 +69,7 @@ type Pointer struct {
 	// KV与link不会同时有值
 	// 节点内容
 	KVs []*KV `refmt:"v,omitempty"`
-	// 指向子节点
+	// 指向子节点，注意cid使用的是blake2b哈希算法，和hashbit使用的64位murmur不同
 	Link cid.Cid `refmt:"l,omitempty"`
 
 	// cached node to avoid too many serialization operations

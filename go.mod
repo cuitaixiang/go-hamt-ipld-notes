@@ -1,4 +1,4 @@
-module github.com/ipfs/go-hamt-ipld
+module github.com/ipfs/go-hamt-ipld-notes
 
 require (
 	github.com/ipfs/go-block-format v0.0.2
@@ -11,4 +11,4 @@ require (
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
 )
 
-go 1.13
+go 1.14
