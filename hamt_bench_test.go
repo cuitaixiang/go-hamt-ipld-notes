@@ -27,6 +27,7 @@ func (r *rander) randValue() []byte {
 	return buf
 }
 
+// put:节点序列化基准测试
 func BenchmarkSerializeNode(b *testing.B) {
 	r := rander{rand.New(rand.NewSource(1234))}
 
@@ -51,15 +52,19 @@ func BenchmarkSerializeNode(b *testing.B) {
 }
 
 type benchSetCase struct {
-	count    int
+	// 测试的kv数量
+	count int
+	// 测试的bit域宽度
 	bitwidth int
 }
 
+// set基准测试
 func BenchmarkSet(b *testing.B) {
 	kCounts := []int{1, 10, 100}
 	bitwidths := []int{5, 8}
 
 	var table []benchSetCase
+	// 不同数量不同bit域宽度测试
 	for _, c := range kCounts {
 
 		for _, bw := range bitwidths {
@@ -84,6 +89,7 @@ func BenchmarkSet(b *testing.B) {
 	}
 }
 
+// find基准测试
 func BenchmarkFind(b *testing.B) {
 	b.Run("find-10k", doBenchmarkEntriesCount(10000, 8))
 	b.Run("find-100k", doBenchmarkEntriesCount(100000, 8))
@@ -94,6 +100,7 @@ func BenchmarkFind(b *testing.B) {
 
 }
 
+// set-flush-find
 func doBenchmarkEntriesCount(num int, bitWidth int) func(b *testing.B) {
 	r := rander{rand.New(rand.NewSource(int64(num)))}
 	return func(b *testing.B) {

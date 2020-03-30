@@ -18,7 +18,7 @@ const arrayWidth = 3
 const defaultBitWidth = 8
 
 type Node struct {
-	// bit域：用1来标识有无，Pointer的最大个数 = 2^(bitwidth-1)
+	// bit域：用1来标识有无，Pointer的最大个数 = 2^bitwidth
 	Bitfield *big.Int   `refmt:"bf"`
 	Pointers []*Pointer `refmt:"p"`
 
@@ -110,6 +110,7 @@ func (n *Node) FindRaw(ctx context.Context, k string) ([]byte, error) {
 	return ret, err
 }
 
+// 删除相关
 func (n *Node) Delete(ctx context.Context, k string) error {
 	return n.modifyValue(ctx, &hashBits{b: hash(k)}, k, nil)
 }

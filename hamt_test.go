@@ -55,12 +55,14 @@ func dotGraph(n *Node) {
 	fmt.Println("}")
 }
 
+//一致哈希算法（32位），直接将string转为byte[]
 var identityHash = func(k string) []byte {
 	res := make([]byte, 32)
 	copy(res, []byte(k))
 	return res
 }
 
+//短一致哈希算法（取前16位），直接将string转为byte[]
 var shortIdentityHash = func(k string) []byte {
 	res := make([]byte, 16)
 	copy(res, []byte(k))
@@ -143,21 +145,25 @@ func addAndRemoveKeys(t *testing.T, bitWidth int, keys []string, extraKeys []str
 
 	fmt.Println("start flush")
 	bef := time.Now()
+	// 存放缓存
 	if err := begn.Flush(ctx); err != nil {
 		t.Fatal(err)
 	}
 	fmt.Println("flush took: ", time.Since(bef))
+	// 存放root
 	c, err := cs.Put(ctx, begn)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var n Node
+	// 加载root
 	if err := cs.Get(ctx, c, &n); err != nil {
 		t.Fatal(err)
 	}
 	n.store = cs
 	n.bitWidth = bitWidth
+	// 查找并比较结果
 	for k, v := range vals {
 		var out []byte
 		err := n.Find(ctx, k, &out)
@@ -170,9 +176,11 @@ func addAndRemoveKeys(t *testing.T, bitWidth int, keys []string, extraKeys []str
 	}
 
 	// create second hamt by adding and deleting the extra keys
+	// 添加
 	for i := 0; i < len(extraKeys); i++ {
 		begn.Set(ctx, extraKeys[i], randValue())
 	}
+	// 然后删除
 	for i := 0; i < len(extraKeys); i++ {
 		if err := begn.Delete(ctx, extraKeys[i]); err != nil {
 			t.Fatal(err)
@@ -193,6 +201,7 @@ func addAndRemoveKeys(t *testing.T, bitWidth int, keys []string, extraKeys []str
 	}
 	n2.store = cs
 	n2.bitWidth = bitWidth
+	// 应该相等
 	if !nodesEqual(t, cs, &n, &n2) {
 		t.Fatal("nodes should be equal")
 	}
@@ -220,18 +229,24 @@ func dotGraphRec(n *Node, name *int) {
 	}
 }
 
+//hamt统计
 type hamtStats struct {
+	// 总节点数
 	totalNodes int
-	totalKvs   int
-	counts     map[int]int
+	// 总KV数
+	totalKvs int
+	// pointer中kv个数统计
+	counts map[int]int
 }
 
+// 以当前节点为root开始统计
 func stats(n *Node) *hamtStats {
 	st := &hamtStats{counts: make(map[int]int)}
 	statsrec(n, st)
 	return st
 }
 
+// 递归统计
 func statsrec(n *Node, st *hamtStats) {
 	st.totalNodes++
 	for _, p := range n.Pointers {
@@ -556,6 +571,7 @@ func TestCopyWithoutFlush(t *testing.T) {
 	}
 }
 
+// 在value中放cid链接
 func TestValueLinking(t *testing.T) {
 	ctx := context.Background()
 	cs := cbor.NewCborStore(newMockBlocks())
